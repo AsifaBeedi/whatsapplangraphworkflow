@@ -1,6 +1,6 @@
 # AI-Powered Workflow Assistant
 
-A Flask-based application that implements an agentic workflow using LangGraph and Google's Gemini AI to provide intelligent, context-aware responses. The system processes messages through multiple specialized agents to generate comprehensive and contextual responses.
+A Flask-based application that implements an agentic workflow using LangGraph and Hugging Face to provide intelligent, context-aware responses. The system processes messages through multiple specialized agents to generate comprehensive and contextual responses.
 
 ## Features
 
@@ -22,7 +22,7 @@ A Flask-based application that implements an agentic workflow using LangGraph an
 - Flask (Web Framework)
 - LangGraph (Workflow Orchestration)
 - Langchain (AI Framework)
-- Google Gemini AI (Language Model)
+- HugingFace -Inference Client(Text Generation)
 - PyMuPDF (PDF Processing)
 - PyTube (YouTube Integration)
 - Ngrok (Tunnel Service)
