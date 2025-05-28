@@ -225,6 +225,10 @@ def index():
                     <div id="chatLoading" class="loader hidden"></div>
                     <div id="chatResult" class="result hidden"></div>
                 </div>
+                
+                <a id="whatsappSendBtn" href="#" target="_blank" style="display:none;">
+                    <button style="background-color:#25D366;">Send to WhatsApp</button>
+                </a>
             </div>
             
             <script>
@@ -278,8 +282,16 @@ def index():
                         
                         if (data.status === 'success') {
                             document.getElementById('marketingResult').textContent = data.formatted_response;
+
+                            // WhatsApp integration
+                            const phone = ""; // Optionally, set a default phone number with country code (e.g., "919999999999")
+                            const text = encodeURIComponent(data.marketing_message);
+                            const waBtn = document.getElementById('whatsappSendBtn');
+                            waBtn.href = `https://wa.me/${phone}?text=${text}`;
+                            waBtn.style.display = "inline-block";
                         } else {
                             document.getElementById('marketingResult').textContent = 'Error: ' + data.message;
+                            document.getElementById('whatsappSendBtn').style.display = "none";
                         }
                     } catch (error) {
                         document.getElementById('marketingLoading').classList.add('hidden');
