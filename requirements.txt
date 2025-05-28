@@ -5,7 +5,7 @@ PyMuPDF
 pyngrok
 elevenlabs
 python-dotenv==1.0.0
-langchain==0.1.0
+langchain==0.0.335
 langgraph==0.0.15
 asgiref==3.7.2
 huggingface_hub

@@ -4,23 +4,22 @@ import os
 from dotenv import load_dotenv
 import time
 import random
+from transformers import pipeline
+import openai
 
 # Load environment variables
 load_dotenv()
 
 # Get API token from environment variables
 HF_TOKEN = os.getenv("HUGGINGFACE_API_KEY")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 # Initialize the Hugging Face inference client
 client = InferenceClient(token=HF_TOKEN)
 
-# Define preferred models in order of preference
-MARKETING_MODELS = [
-    "google/flan-t5-large",  
-    "facebook/bart-large-cnn",
-    "sshleifer/distilbart-cnn-12-6",
-    "google/flan-t5-base"
-]
+# Initialize the local text generation pipeline once
+generator = pipeline("text-generation", model="distilgpt2")
+
 
 # Template messages for fallback scenarios
 FALLBACK_TEMPLATES = [
@@ -31,113 +30,82 @@ FALLBACK_TEMPLATES = [
 ]
 
 def generate_marketing_text(prompt, max_retries=2):
-    """Generate marketing text using Hugging Face models"""
-    for retry in range(max_retries):
-        for model in MARKETING_MODELS:
-            try:
-                print(f"Trying marketing model: {model}")
-                response = client.text_generation(
-                    prompt=prompt,
-                    model=model,
-                    max_new_tokens=150,
-                    temperature=0.8
-                )
-                return response.strip()
-            except Exception as e:
-                print(f"Error with model {model}: {str(e)}")
-                time.sleep(1)  # Brief pause before trying again
-    
-    # Return a fallback template if all models fail
-    template = random.choice(FALLBACK_TEMPLATES)
-    return template.format(product="our products")
+   
+    try:
+        result = generator(
+            prompt,
+            max_new_tokens=60,
+            num_return_sequences=1,
+            truncation=True,
+            pad_token_id=50256
+        )
+        # Remove the prompt from the output if present
+        text = result[0]['generated_text']
+        if text.startswith(prompt):
+            text = text[len(prompt):].strip()
+        return text
+    except Exception as e:
+        print(f"Error with local model: {str(e)}")
+        template = random.choice(FALLBACK_TEMPLATES)
+        return template.format(product="our products")
 
 def create_marketing_message(product_info, campaign_type="promotion"):
-    """Create a marketing message based on product info and campaign type"""
-    try:
-        # Build prompt based on campaign type
-        if campaign_type == "promotion":
-            prompt = f"""
-            Create a short, engaging WhatsApp marketing message for the following product promotion:
-            Product: {product_info}
-            
-            The message should:
-            - Be brief (under 280 characters)
-            - Include emojis
-            - Have a clear call-to-action
-            - Create urgency
-            - Be friendly and exciting
-            """
-        elif campaign_type == "announcement":
-            prompt = f"""
-            Create a short, engaging WhatsApp announcement message for:
-            Product/Service: {product_info}
-            
-            The message should:
-            - Be brief (under 280 characters)
-            - Include emojis
-            - Build excitement
-            - Have a clear next step for customers
-            - Sound professional but friendly
-            """
-        else:  # reminder or default
-            prompt = f"""
-            Create a short, friendly WhatsApp reminder message about:
-            {product_info}
-            
-            The message should:
-            - Be brief (under 280 characters)
-            - Include emojis
-            - Gently encourage action
-            - Be helpful and not pushy
-            - Include a simple call-to-action
-            """
-        
-        # Generate the marketing content
-        message = generate_marketing_text(prompt)
-        
-        # Clean up the message (remove quotation marks if present)
-        message = message.strip('"\'')
-        
-        return message
-    except Exception as e:
-        print(f"Error creating marketing message: {e}")
-        template = random.choice(FALLBACK_TEMPLATES)
-        return template.format(product=product_info[:20] if product_info else "our products")
+    prompt = (
+        f"Create a short, engaging WhatsApp marketing message for the following product promotion:\n"
+        f"Product: {product_info}\n\n"
+        "The message should:\n"
+        "- Be brief (under 280 characters)\n"
+        "- Include emojis\n"
+        "- Have a clear call-to-action\n"
+        "- Create urgency\n"
+        "- Be friendly and exciting"
+    )
+    # Only return the generated message, not any explanation
+    message = generate_marketing_text_groq(prompt)
+    # If the model returns extra explanation, keep only the first quoted or first line
+    if "\n" in message:
+        # Try to extract the first quoted string, else just the first line
+        import re
+        match = re.search(r'["“](.+?)["”]', message, re.DOTALL)
+        if match:
+            return match.group(1).strip()
+        return message.split('\n')[0].strip()
+    return message.strip()
 
 def create_ab_test_variations(product_info, campaign_type="promotion", num_variations=2):
-    """Create multiple variations for A/B testing"""
+    """Create multiple diverse variations for A/B testing using Groq LLMs"""
+    prompts = [
+        f"Write a short, urgent WhatsApp marketing message for this product: {product_info}. Use a strong call-to-action, create urgency, and include emojis. Make it sound exciting and exclusive.",
+        f"Write a friendly WhatsApp marketing message for this product: {product_info}. Start with a question to spark curiosity, highlight a unique benefit, and include emojis.",
+        f"Write a WhatsApp marketing message for this product: {product_info}. Mention how many customers love it (social proof), use a warm tone, and include emojis.",
+        f"Write a WhatsApp marketing message for this product: {product_info}. Emphasize a limited-time offer, use a bold statement, and include emojis.",
+        f"Write a personalized WhatsApp marketing message for this product: {product_info}. Address the customer directly, make it feel exclusive, and include emojis."
+    ]
     variations = []
-    
-    # Different emphasis points for variations
-    emphasis_points = {
-        "promotion": ["price", "limited time", "exclusive deal", "value proposition"],
-        "announcement": ["new features", "launch date", "benefits", "excitement"],
-        "reminder": ["deadline", "benefits", "simple process", "friendly reminder"]
-    }
-    
-    # Get relevant emphasis points
-    points = emphasis_points.get(campaign_type, emphasis_points["promotion"])
-    
-    # Generate variations
-    for i in range(min(num_variations, len(points))):
-        try:
-            emphasis = points[i]
-            prompt = f"""
-            Create a short WhatsApp marketing message for {product_info}.
-            Campaign type: {campaign_type}
-            Emphasize: {emphasis}
-            
-            The message should be brief, include emojis, and have a clear call-to-action.
-            """
-            
-            message = generate_marketing_text(prompt)
-            variations.append(message.strip('"\''))
-        except Exception as e:
-            print(f"Error creating variation {i+1}: {e}")
-            template = random.choice(FALLBACK_TEMPLATES)
-            variations.append(template.format(product=product_info[:20] if product_info else "our products"))
-    
+    for i in range(num_variations):
+        prompt = prompts[i % len(prompts)]
+        message = generate_marketing_text_groq(prompt)
+        variations.append(message)
     return variations
+
+def generate_marketing_text_groq(prompt, model="llama3-8b-8192", max_tokens=120):
+    """Generate marketing text using Groq LLMs (Llama-3, Mixtral, Gemma)"""
+    if not GROQ_API_KEY:
+        print("Groq API key not found.")
+        return "API key missing."
+    try:
+        client = openai.OpenAI(api_key=GROQ_API_KEY, base_url="https://api.groq.com/openai/v1")
+        response = client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=max_tokens,
+            temperature=0.8,
+        )
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        print(f"Groq API error: {e}")
+        template = random.choice(FALLBACK_TEMPLATES)
+        return template.format(product="our products")
 
 # Testing function
 if __name__ == "__main__":
