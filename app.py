@@ -7,7 +7,7 @@ import os
 from dotenv import load_dotenv
 import sys
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from marketing_helper import create_marketing_message, create_ab_test_variations
+from marketing_helper import create_marketing_message, create_ab_test_variations, generate_marketing_text_groq  # Already imported
 
 # Load environment variables
 load_dotenv()
@@ -24,17 +24,16 @@ def sync_process(message):
 
 @app.route('/process_message', methods=['POST'])
 def process_message():
-    """API endpoint to process messages using the workflow"""
+    """API endpoint to process chat messages using Groq LLM"""
     try:
         data = request.json
         message = data.get('message', '')
-        
-        # Process the message using your existing workflow
-        response = sync_process(message)
-        
+        # You can add chat history/context here if you want
+        prompt = f"You are a helpful WhatsApp assistant. User says: {message}\nAssistant:"
+        response = generate_marketing_text_groq(prompt, model="llama3-8b-8192", max_tokens=120)
         return jsonify({
             'status': 'success',
-            'response': response.get('final_response', 'Sorry, I could not process your request.')
+            'response': response
         })
     except Exception as e:
         return jsonify({
